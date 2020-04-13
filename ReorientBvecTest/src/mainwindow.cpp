@@ -38,6 +38,9 @@ void MainWindow::OnOpenFileButtonClicked()
 		QDir::currentPath(),
 		tr("Images (*.nii.gz)"));
 
+	//from here on the code becomes ugly and unstructured
+
+	//itk 
 	using PixelType = short;
 	constexpr unsigned int Dimension = 3;
 	using ImageType = itk::Image<PixelType, Dimension>;
@@ -49,26 +52,15 @@ void MainWindow::OnOpenFileButtonClicked()
 	WriterType::Pointer writer = WriterType::New();
 
 	reader->SetFileName(inputFilename.toStdString());
-	//writer->SetFileName(outputFilename);
-
 	reader->GetOutput();
 
-	outputFilename = inputFilename + "_out.nii.gz";
-	writer->SetFileName(outputFilename.toStdString());
-	writer->SetInput(reader->GetOutput());
-	writer->Write();
+	//outputFilename = inputFilename + "_out.nii.gz";
+	//writer->SetFileName(outputFilename.toStdString());
+	//writer->SetInput(reader->GetOutput());
+	//writer->Write();
 
-	std::cout << " input file read and re-written " << std::endl;
+	//std::cout << " input file read and re-written " << std::endl;
 
-	//also read as vtk and write out and check if it gives orientation
-	vtkSmartPointer<vtkNIFTIImageReader> vtkreader = vtkSmartPointer<vtkNIFTIImageReader>::New();
-	vtkreader->SetFileName(inputFilename.toStdString().c_str());
-	vtkreader->Update();
-	std::cout << "vtk nifti read" << std::endl;
-	vtkImageData *img = vtkreader->GetOutput();
-	img->Print(std::cout);
-
-	//use orient image filter to get orientation
 	//string,enum map of itk orientation
 	std::map< itk::SpatialOrientation::ValidCoordinateOrientationFlags, std::string > m_CodeToString;
 	// Map between axis string labels and SpatialOrientation
@@ -121,6 +113,8 @@ void MainWindow::OnOpenFileButtonClicked()
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_AIL] = "AIL";
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ASL] = "ASL";
 
+
+	//use orient image filter to get orientation
 	auto orientFilter = itk::OrientImageFilter< ImageType, ImageType >::New();
 	orientFilter->SetInput(reader->GetOutput());
 	orientFilter->UseImageDirectionOn();
