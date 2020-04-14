@@ -8,6 +8,7 @@
 #include "itkImageFileWriter.h"
 #include <itkOrientImageFilter.h>
 
+
 #include "vtkSmartPointer.h"
 #include <vtkNIFTIImageReader.h>
 #include <vtkImageData.h>
@@ -132,4 +133,44 @@ void MainWindow::OnOpenFileButtonClicked()
 	for (int i = 0; i < 9; i++)
 		std::cout << LAStoLPS[i] << " ";
 	std::cout << endl;
+
+	//read bvec
+	MatrixType dataMatrix =	this->ReadBVecFile("C:\\workspace\\Data\\Testathon\\issue840\\reorient_bvecs\\dwi_las.bvec");
+	this->WriteCSVFiles(dataMatrix, "C:\workspace\Data\Testathon\issue840\reorient_bvecs\vnlout.txt");
+}
+
+void MainWindow::WriteCSVFiles(MatrixType matrix, QString filename)
+{
+	//std::ofstream myfile;
+	//myfile.open(filename.toStdString());
+	//for (unsigned int index1 = 0; index1 < matrix.Size(); index1++)
+		//myfile << std::to_string(inputdata[index1]) << ",";
+
+	//myfile << "\n";
+	//myfile.close();
+	std::cout << matrix;
+	std::cout << endl;
+}
+
+
+MainWindow::MatrixType MainWindow::ReadBVecFile(QString filename)
+{
+	//read bvec file
+	CSVFileReaderType::Pointer csvreader = CSVFileReaderType::New();
+	MatrixType dataMatrix;
+	try
+	{
+		csvreader->SetFileName(filename.toStdString());
+		csvreader->SetFieldDelimiterCharacter(' ');
+		csvreader->HasColumnHeadersOff();
+		csvreader->HasRowHeadersOff();
+		csvreader->Parse();
+		dataMatrix = csvreader->GetArray2DDataObject()->GetMatrix();
+
+	}
+	catch (const std::exception& e1)
+	{
+		std::cout << "Cannot find the file bvec file. Error code : " + std::string(e1.what());
+	}
+	return dataMatrix;
 }
