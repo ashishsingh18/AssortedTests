@@ -90,8 +90,10 @@ void MainWindow::OnOpenFileButtonClicked()
 
 	//string,enum map of itk orientation
 	std::map< itk::SpatialOrientation::ValidCoordinateOrientationFlags, std::string > m_CodeToString;
-	// Map between axis string labels and SpatialOrientation
-    // "from" conventions are used here (I think)
+    // Map between axis string labels and SpatialOrientation
+
+    // the "from" (neurological) convention is used here as per ITK
+    // key = itk spatial orientation, value = axcode/acronym string
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RIP] = "RIP";
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LIP] = "LIP";
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RSP] = "RSP";
@@ -145,7 +147,39 @@ void MainWindow::OnOpenFileButtonClicked()
 	//ImageTypeDWI::RegionType region = dwiimg->GetLargestPossibleRegion();
 	//ImageTypeDWI::SizeType   size = region.GetSize();
 	//std::cout << " size = " << size[0] << std::endl;
+    // generate axcode label mapping between the two orientations
+    std::map<std::string, std::string> axcodeOrientationSwitchMap;
+    for (auto it = m_CodeToString.begin(); it != m_CodeToString.end(); ++it){ // iterate through map
+        std::string swappedAcronym;
+        for (char ax : it->second) { // iterate through acronym
+           // invert axis label
+           swappedAcronym += vtkAnatomicalOrientation::AxisToChar(
+                                vtkAnatomicalOrientation::AxisInverse(
+                                    vtkAnatomicalOrientation::AxisFromChar(ax)));
+        }
+        axcodeOrientationSwitchMap[it->second] = swappedAcronym;
+    }
 
+    // generate "to" (radiological) convention mapping
+    // key = itk spatial coordinate orientation, value = axcode/acronym string
+    std::map< itk::SpatialOrientation::ValidCoordinateOrientationFlags, std::string > m_radiologicalCodeToString;
+    for (auto it = m_CodeToString.begin(); it != m_CodeToString.end(); ++it) {
+        m_radiologicalCodeToString[it->first] = axcodeOrientationSwitchMap[it->second]; //
+    }
+
+
+
+	//use orient image filter to get orientation
+	auto orientFilter = itk::OrientImageFilter< ImageType, ImageType >::New();
+	orientFilter->SetInput(reader->GetOutput());
+	orientFilter->UseImageDirectionOn();
+	orientFilter->SetDirectionTolerance(0);
+	orientFilter->SetCoordinateTolerance(0);
+    //
+    //orientFilter->SetDesiredCoordinateOrientation(itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI);
+	orientFilter->Update();
+    std::cout << " input image orientation = " << m_CodeToString[orientFilter->GetGivenCoordinateOrientation()] << std::endl;
+	std::cout << orientFilter->GetPermuteOrder() << std::endl;
 
 	// 4D image handling starts here
 	// we extract individual 3D images from the input 4D image
@@ -196,11 +230,15 @@ void MainWindow::OnOpenFileButtonClicked()
 
     std::cout << "Calculating necessary transform" << endl;
 	//anatomical orientation transform
-	vtkAnatomicalOrientation orientmatrix("LAS");
-	double LAStoLPS[9] = { 0.0 };
-	orientmatrix.GetTransformTo(vtkAnatomicalOrientation::LPS, LAStoLPS);
+    vtkAnatomicalOrientation currentOrientation("RPI");
+    // Change the above line to take the string-conversion of ITK OrientImageFilter's "GetGivenCoordinateOrientation"
+    // (use either m_CodeToString or m_radiologicalCodeToString as desired/needed)
+    vtkAnatomicalOrientation desiredOrientation;
+    desiredOrientation.SetForAcronym("RAI");
+    double transform[9] = { 0.0 };
+    currentOrientation.GetTransformTo(desiredOrientation, transform);
 	for (int i = 0; i < 9; i++)
-		std::cout << LAStoLPS[i] << " ";
+        std::cout << transform[i] << " ";
 	std::cout << endl;
 
 	//read bvec
