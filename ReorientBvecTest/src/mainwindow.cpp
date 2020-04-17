@@ -8,6 +8,8 @@
 #include "itkImageFileWriter.h"
 #include <itkOrientImageFilter.h>
 #include "itkCSVNumericObjectFileWriter.h"
+#include "itkExtractImageFilter.h"
+#include "itkImageIOFactory.h"
 
 #include "vtkSmartPointer.h"
 #include <vtkNIFTIImageReader.h>
@@ -43,18 +45,41 @@ void MainWindow::OnOpenFileButtonClicked()
 
 	//from here on the code becomes ugly and unstructured
 
+	//get image properties
+	itk::ImageIOBase::Pointer itkImageIOBase;
+	itkImageIOBase = itk::ImageIOFactory::CreateImageIO(inputFilename.toStdString().c_str(),itk::ImageIOFactory::ReadMode);
+	if (!itkImageIOBase->CanReadFile(inputFilename.toStdString().c_str()))
+	{
+		std::cout << "Cannot read '" << inputFilename.toStdString() << "'\n";
+	}
+
+	itkImageIOBase->SetFileName(inputFilename.toStdString());
+	itkImageIOBase->ReadImageInformation();
+
+	int dims = itkImageIOBase->GetNumberOfDimensions();
+	std::cout << " image dimensions = " << dims << std::endl;
+
+	//store image dimensions
+	int isize[4];
+	for (int i = 0; i < dims; i++)
+		isize[i] = itkImageIOBase->GetDimensions(i);
+
 	//itk 
 	using PixelType = short;
-    constexpr unsigned int Dimension = 3;
-	using ImageType = itk::Image<PixelType, Dimension>;
+	constexpr unsigned int Dimension4D = 4;
+	using ImageTypeDWI = itk::Image<PixelType, Dimension4D>;
 
-	using ReaderType = itk::ImageFileReader<ImageType>;
+	constexpr unsigned int Dimension3D = 3;
+	using ImageType3D = itk::Image<PixelType, Dimension3D>;
+
+	//read input image
+	using ReaderType = itk::ImageFileReader<ImageTypeDWI>;
 
     ReaderType::Pointer reader = ReaderType::New();
-
     std::cout << "Begin file reading" << endl;
 	reader->SetFileName(inputFilename.toStdString());
 	reader->GetOutput();
+	ImageTypeDWI::Pointer dwiimg = reader->GetOutput();
 
 	//outputFilename = inputFilename + "_out.nii.gz";
 	//writer->SetFileName(outputFilename.toStdString());
@@ -118,6 +143,10 @@ void MainWindow::OnOpenFileButtonClicked()
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_AIL] = "AIL";
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ASL] = "ASL";
 
+	//std::cout << " image dimensions = " << dwiimg->GetImageDimension() << std::endl;
+	//ImageTypeDWI::RegionType region = dwiimg->GetLargestPossibleRegion();
+	//ImageTypeDWI::SizeType   size = region.GetSize();
+	//std::cout << " size = " << size[0] << std::endl;
     // generate axcode label mapping between the two orientations
     std::map<std::string, std::string> axcodeOrientationSwitchMap;
     for (auto it = m_CodeToString.begin(); it != m_CodeToString.end(); ++it){ // iterate through map
@@ -152,6 +181,53 @@ void MainWindow::OnOpenFileButtonClicked()
     std::cout << " input image orientation = " << m_CodeToString[orientFilter->GetGivenCoordinateOrientation()] << std::endl;
 	std::cout << orientFilter->GetPermuteOrder() << std::endl;
 
+	// 4D image handling starts here
+	// we extract individual 3D images from the input 4D image
+
+	// set the sub-image properties
+	typename ImageTypeDWI::IndexType regionIndex;
+	typename ImageTypeDWI::SizeType regionSize;
+	regionSize[0] = isize[0];
+	regionSize[1] = isize[1];
+	regionSize[2] = isize[2];
+	regionSize[3] = 0;
+	regionIndex[0] = 0;
+	regionIndex[1] = 0;
+	regionIndex[2] = 0;
+
+	for (int i = 0; i < isize[3]; i++)
+	{
+		regionIndex[3] = i;
+		typename ImageTypeDWI::RegionType desiredRegion(regionIndex, regionSize);
+
+		auto filter = itk::ExtractImageFilter< ImageTypeDWI, ImageType3D >::New();
+		filter->SetExtractionRegion(desiredRegion);
+		filter->SetInput(dwiimg);
+		filter->SetDirectionCollapseToSubmatrix();
+		filter->Update();
+		auto extractedImg = filter->GetOutput();
+
+		//get orientation
+		auto orientFilter = itk::OrientImageFilter< ImageType3D, ImageType3D >::New();
+		orientFilter->SetInput(extractedImg);
+		orientFilter->UseImageDirectionOn();
+		orientFilter->SetDirectionTolerance(0);
+		orientFilter->SetCoordinateTolerance(0);
+		orientFilter->Update();
+		std::cout << "image # " << i << " , orientation = " << m_CodeToString[orientFilter->GetGivenCoordinateOrientation()] << std::endl;
+	}
+
+	////use orient image filter to get orientation
+	//auto orientFilter = itk::OrientImageFilter< ImageTypeDWI, ImageTypeDWI >::New();
+	//orientFilter->SetInput(reader->GetOutput());
+	//orientFilter->UseImageDirectionOn();
+	//orientFilter->SetDirectionTolerance(0);
+	//orientFilter->SetCoordinateTolerance(0);
+	////orientFilter->SetDesiredCoordinateOrientation(itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI);
+	//orientFilter->Update();
+ //   std::cout << " input image orientation = " << m_CodeToString[orientFilter->GetGivenCoordinateOrientation()] << std::endl;
+	//std::cout << orientFilter->GetPermuteOrder() << std::endl;
+
     std::cout << "Calculating necessary transform" << endl;
 	//anatomical orientation transform
     vtkAnatomicalOrientation currentOrientation("RPI");
@@ -165,31 +241,23 @@ void MainWindow::OnOpenFileButtonClicked()
         std::cout << transform[i] << " ";
 	std::cout << endl;
 
-
 	//read bvec
     std::cout << "Applying transform" << endl;
-    MatrixType dataMatrix =	this->ReadBVecFile("E:\\moba\\orientations\\dwi_las.bvec");
-    MatrixType transformMatrix(3, 3, 9, transform); // read transform into 3x3 vnl_matrix<double>
+    MatrixType dataMatrix =	this->ReadBVecFile("C:\\workspace\\Data\\Testathon\\issue840\\reorient_bvecs\\dwi_las.bvec");
+    MatrixType transformMatrix(3, 3, 9, LAStoLPS); // read LAStoLPS transform into 3x3 vnl_matrix<double>
 
+	//reorient bvec
     MatrixType resultMatrix(dataMatrix); // same shape as data
     resultMatrix = dataMatrix.transpose() * transformMatrix; // apply the transform
     resultMatrix.inplace_transpose(); // transpose back to original shape
 
-    this->WriteCSVFiles(resultMatrix, "E:/moba/orientations/test_output/dwi_las_toLPS_RPI_to_RAI.bvec");
-
+	//write reorient bvec
+    this->WriteCSVFiles(resultMatrix, "C:\\workspace\\Data\\Testathon\\issue840\\reorient_bvecs\\vnlout.txt");
 
 }
 
 void MainWindow::WriteCSVFiles(MatrixType matrix, QString filename)
 {
-	//std::ofstream myfile;
-	//myfile.open(filename.toStdString());
-	//for (unsigned int index1 = 0; index1 < matrix.Size(); index1++)
-		//myfile << std::to_string(inputdata[index1]) << ",";
-
-	//myfile << "\n";
-	//myfile.close();
-
     std::cout << "Beginning file writing"  << endl;
     using WriterType = itk::CSVNumericObjectFileWriter<double>;
     WriterType::Pointer writer = WriterType::New();
@@ -208,8 +276,8 @@ void MainWindow::WriteCSVFiles(MatrixType matrix, QString filename)
     QMessageBox::information(
             this, tr("ReorientBvecTest"), tr("Done writing to file."));
 
-	std::cout << matrix;
-	std::cout << endl;
+	std::cout << " print reoriented bvec " << std::endl;
+	std::cout << matrix << std::endl;
 
 }
 
