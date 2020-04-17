@@ -7,12 +7,14 @@
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
 #include <itkOrientImageFilter.h>
-
+#include "itkCSVNumericObjectFileWriter.h"
 
 #include "vtkSmartPointer.h"
 #include <vtkNIFTIImageReader.h>
 #include <vtkImageData.h>
 #include "vtkAnatomicalOrientation.h"
+
+#include <QMessageBox>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -47,11 +49,10 @@ void MainWindow::OnOpenFileButtonClicked()
 	using ImageType = itk::Image<PixelType, Dimension>;
 
 	using ReaderType = itk::ImageFileReader<ImageType>;
-	using WriterType = itk::ImageFileWriter<ImageType>;
 
-	ReaderType::Pointer reader = ReaderType::New();
-	WriterType::Pointer writer = WriterType::New();
+    ReaderType::Pointer reader = ReaderType::New();
 
+    std::cout << "Begin file reading" << endl;
 	reader->SetFileName(inputFilename.toStdString());
 	reader->GetOutput();
 
@@ -65,6 +66,7 @@ void MainWindow::OnOpenFileButtonClicked()
 	//string,enum map of itk orientation
 	std::map< itk::SpatialOrientation::ValidCoordinateOrientationFlags, std::string > m_CodeToString;
 	// Map between axis string labels and SpatialOrientation
+    // "from" conventions are used here (I think)
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RIP] = "RIP";
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LIP] = "LIP";
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RSP] = "RSP";
@@ -123,9 +125,10 @@ void MainWindow::OnOpenFileButtonClicked()
 	orientFilter->SetCoordinateTolerance(0);
 	//orientFilter->SetDesiredCoordinateOrientation(itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI);
 	orientFilter->Update();
-	std::cout << " input image orientatation = " << m_CodeToString[orientFilter->GetGivenCoordinateOrientation()] << std::endl;
+    std::cout << " input image orientation = " << m_CodeToString[orientFilter->GetGivenCoordinateOrientation()] << std::endl;
 	std::cout << orientFilter->GetPermuteOrder() << std::endl;
 
+    std::cout << "Calculating necessary transform" << endl;
 	//anatomical orientation transform
 	vtkAnatomicalOrientation orientmatrix("LAS");
 	double LAStoLPS[9] = { 0.0 };
@@ -134,9 +137,19 @@ void MainWindow::OnOpenFileButtonClicked()
 		std::cout << LAStoLPS[i] << " ";
 	std::cout << endl;
 
+
 	//read bvec
-	MatrixType dataMatrix =	this->ReadBVecFile("C:\\workspace\\Data\\Testathon\\issue840\\reorient_bvecs\\dwi_las.bvec");
-	this->WriteCSVFiles(dataMatrix, "C:\workspace\Data\Testathon\issue840\reorient_bvecs\vnlout.txt");
+    std::cout << "Applying transform" << endl;
+    MatrixType dataMatrix =	this->ReadBVecFile("E:\\moba\\orientations\\dwi_las.bvec");
+    MatrixType transformMatrix(3, 3, 9, LAStoLPS); // read LAStoLPS transform into 3x3 vnl_matrix<double>
+
+    MatrixType resultMatrix(dataMatrix); // same shape as data
+    resultMatrix = dataMatrix.transpose() * transformMatrix; // apply the transform
+    resultMatrix.inplace_transpose(); // transpose back to original shape
+
+    this->WriteCSVFiles(resultMatrix, "E:/moba/orientations/test_output/dwi_las_toLPS.bvec");
+
+
 }
 
 void MainWindow::WriteCSVFiles(MatrixType matrix, QString filename)
@@ -148,8 +161,28 @@ void MainWindow::WriteCSVFiles(MatrixType matrix, QString filename)
 
 	//myfile << "\n";
 	//myfile.close();
+
+    std::cout << "Beginning file writing"  << endl;
+    using WriterType = itk::CSVNumericObjectFileWriter<double>;
+    WriterType::Pointer writer = WriterType::New();
+
+    try {
+        writer->SetInput(&matrix);
+        writer->SetFileName(filename.toStdString());
+        writer->SetFieldDelimiterCharacter(' ');
+        writer->Update();
+    }
+    catch (...) {
+        std::cout << "File writing failed. Check permissions, etc." << endl;
+        return;
+    }
+
+    QMessageBox::information(
+            this, tr("ReorientBvecTest"), tr("Done writing to file."));
+
 	std::cout << matrix;
 	std::cout << endl;
+
 }
 
 
@@ -157,7 +190,9 @@ MainWindow::MatrixType MainWindow::ReadBVecFile(QString filename)
 {
 	//read bvec file
 	CSVFileReaderType::Pointer csvreader = CSVFileReaderType::New();
-	MatrixType dataMatrix;
+
+    itk::SizeValueType rows;
+    itk::SizeValueType cols;
 	try
 	{
 		csvreader->SetFileName(filename.toStdString());
@@ -165,12 +200,13 @@ MainWindow::MatrixType MainWindow::ReadBVecFile(QString filename)
 		csvreader->HasColumnHeadersOff();
 		csvreader->HasRowHeadersOff();
 		csvreader->Parse();
-		dataMatrix = csvreader->GetArray2DDataObject()->GetMatrix();
-
+        csvreader->GetDataDimension(rows, cols);
 	}
 	catch (const std::exception& e1)
 	{
 		std::cout << "Cannot find the file bvec file. Error code : " + std::string(e1.what());
 	}
+    MatrixType dataMatrix(rows, cols); // give data matrix a definite size
+    dataMatrix = csvreader->GetArray2DDataObject()->GetMatrix();
 	return dataMatrix;
 }
