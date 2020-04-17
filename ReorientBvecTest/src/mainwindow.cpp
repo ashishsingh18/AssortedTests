@@ -147,6 +147,7 @@ void MainWindow::OnOpenFileButtonClicked()
 	//ImageTypeDWI::RegionType region = dwiimg->GetLargestPossibleRegion();
 	//ImageTypeDWI::SizeType   size = region.GetSize();
 	//std::cout << " size = " << size[0] << std::endl;
+
     // generate axcode label mapping between the two orientations
     std::map<std::string, std::string> axcodeOrientationSwitchMap;
     for (auto it = m_CodeToString.begin(); it != m_CodeToString.end(); ++it){ // iterate through map
@@ -166,20 +167,6 @@ void MainWindow::OnOpenFileButtonClicked()
     for (auto it = m_CodeToString.begin(); it != m_CodeToString.end(); ++it) {
         m_radiologicalCodeToString[it->first] = axcodeOrientationSwitchMap[it->second]; //
     }
-
-
-
-	//use orient image filter to get orientation
-	auto orientFilter = itk::OrientImageFilter< ImageType, ImageType >::New();
-	orientFilter->SetInput(reader->GetOutput());
-	orientFilter->UseImageDirectionOn();
-	orientFilter->SetDirectionTolerance(0);
-	orientFilter->SetCoordinateTolerance(0);
-    //
-    //orientFilter->SetDesiredCoordinateOrientation(itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI);
-	orientFilter->Update();
-    std::cout << " input image orientation = " << m_CodeToString[orientFilter->GetGivenCoordinateOrientation()] << std::endl;
-	std::cout << orientFilter->GetPermuteOrder() << std::endl;
 
 	// 4D image handling starts here
 	// we extract individual 3D images from the input 4D image
@@ -244,7 +231,7 @@ void MainWindow::OnOpenFileButtonClicked()
 	//read bvec
     std::cout << "Applying transform" << endl;
     MatrixType dataMatrix =	this->ReadBVecFile("C:\\workspace\\Data\\Testathon\\issue840\\reorient_bvecs\\dwi_las.bvec");
-    MatrixType transformMatrix(3, 3, 9, LAStoLPS); // read LAStoLPS transform into 3x3 vnl_matrix<double>
+    MatrixType transformMatrix(3, 3, 9, transform); // read LAStoLPS transform into 3x3 vnl_matrix<double>
 
 	//reorient bvec
     MatrixType resultMatrix(dataMatrix); // same shape as data
