@@ -45,7 +45,7 @@ void MainWindow::OnOpenFileButtonClicked()
 
 	//itk 
 	using PixelType = short;
-	constexpr unsigned int Dimension = 3;
+    constexpr unsigned int Dimension = 3;
 	using ImageType = itk::Image<PixelType, Dimension>;
 
 	using ReaderType = itk::ImageFileReader<ImageType>;
@@ -65,8 +65,10 @@ void MainWindow::OnOpenFileButtonClicked()
 
 	//string,enum map of itk orientation
 	std::map< itk::SpatialOrientation::ValidCoordinateOrientationFlags, std::string > m_CodeToString;
-	// Map between axis string labels and SpatialOrientation
-    // "from" conventions are used here (I think)
+    // Map between axis string labels and SpatialOrientation
+
+    // the "from" (neurological) convention is used here as per ITK
+    // key = itk spatial orientation, value = axcode/acronym string
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RIP] = "RIP";
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LIP] = "LIP";
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RSP] = "RSP";
@@ -116,6 +118,27 @@ void MainWindow::OnOpenFileButtonClicked()
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_AIL] = "AIL";
 	m_CodeToString[itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ASL] = "ASL";
 
+    // generate axcode label mapping between the two orientations
+    std::map<std::string, std::string> axcodeOrientationSwitchMap;
+    for (auto it = m_CodeToString.begin(); it != m_CodeToString.end(); ++it){ // iterate through map
+        std::string swappedAcronym;
+        for (char ax : it->second) { // iterate through acronym
+           // invert axis label
+           swappedAcronym += vtkAnatomicalOrientation::AxisToChar(
+                                vtkAnatomicalOrientation::AxisInverse(
+                                    vtkAnatomicalOrientation::AxisFromChar(ax)));
+        }
+        axcodeOrientationSwitchMap[it->second] = swappedAcronym;
+    }
+
+    // generate "to" (radiological) convention mapping
+    // key = itk spatial coordinate orientation, value = axcode/acronym string
+    std::map< itk::SpatialOrientation::ValidCoordinateOrientationFlags, std::string > m_radiologicalCodeToString;
+    for (auto it = m_CodeToString.begin(); it != m_CodeToString.end(); ++it) {
+        m_radiologicalCodeToString[it->first] = axcodeOrientationSwitchMap[it->second]; //
+    }
+
+
 
 	//use orient image filter to get orientation
 	auto orientFilter = itk::OrientImageFilter< ImageType, ImageType >::New();
@@ -123,31 +146,36 @@ void MainWindow::OnOpenFileButtonClicked()
 	orientFilter->UseImageDirectionOn();
 	orientFilter->SetDirectionTolerance(0);
 	orientFilter->SetCoordinateTolerance(0);
-	//orientFilter->SetDesiredCoordinateOrientation(itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI);
+    //
+    //orientFilter->SetDesiredCoordinateOrientation(itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI);
 	orientFilter->Update();
     std::cout << " input image orientation = " << m_CodeToString[orientFilter->GetGivenCoordinateOrientation()] << std::endl;
 	std::cout << orientFilter->GetPermuteOrder() << std::endl;
 
     std::cout << "Calculating necessary transform" << endl;
 	//anatomical orientation transform
-	vtkAnatomicalOrientation orientmatrix("LAS");
-	double LAStoLPS[9] = { 0.0 };
-	orientmatrix.GetTransformTo(vtkAnatomicalOrientation::LPS, LAStoLPS);
+    vtkAnatomicalOrientation currentOrientation("RPI");
+    // Change the above line to take the string-conversion of ITK OrientImageFilter's "GetGivenCoordinateOrientation"
+    // (use either m_CodeToString or m_radiologicalCodeToString as desired/needed)
+    vtkAnatomicalOrientation desiredOrientation;
+    desiredOrientation.SetForAcronym("RAI");
+    double transform[9] = { 0.0 };
+    currentOrientation.GetTransformTo(desiredOrientation, transform);
 	for (int i = 0; i < 9; i++)
-		std::cout << LAStoLPS[i] << " ";
+        std::cout << transform[i] << " ";
 	std::cout << endl;
 
 
 	//read bvec
     std::cout << "Applying transform" << endl;
     MatrixType dataMatrix =	this->ReadBVecFile("E:\\moba\\orientations\\dwi_las.bvec");
-    MatrixType transformMatrix(3, 3, 9, LAStoLPS); // read LAStoLPS transform into 3x3 vnl_matrix<double>
+    MatrixType transformMatrix(3, 3, 9, transform); // read transform into 3x3 vnl_matrix<double>
 
     MatrixType resultMatrix(dataMatrix); // same shape as data
     resultMatrix = dataMatrix.transpose() * transformMatrix; // apply the transform
     resultMatrix.inplace_transpose(); // transpose back to original shape
 
-    this->WriteCSVFiles(resultMatrix, "E:/moba/orientations/test_output/dwi_las_toLPS.bvec");
+    this->WriteCSVFiles(resultMatrix, "E:/moba/orientations/test_output/dwi_las_toLPS_RPI_to_RAI.bvec");
 
 
 }
