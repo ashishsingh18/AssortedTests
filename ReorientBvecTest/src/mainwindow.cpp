@@ -147,6 +147,7 @@ void MainWindow::OnOpenFileButtonClicked()
 	//ImageTypeDWI::RegionType region = dwiimg->GetLargestPossibleRegion();
 	//ImageTypeDWI::SizeType   size = region.GetSize();
 	//std::cout << " size = " << size[0] << std::endl;
+
     // generate axcode label mapping between the two orientations
     std::map<std::string, std::string> axcodeOrientationSwitchMap;
     for (auto it = m_CodeToString.begin(); it != m_CodeToString.end(); ++it){ // iterate through map
@@ -231,8 +232,9 @@ void MainWindow::OnOpenFileButtonClicked()
 
 	//read bvec
     std::cout << "Applying transform" << endl;
-    MatrixType dataMatrix =	this->ReadBVecFile("E:\\moba\\orientations\\dwi_las.bvec");
-    MatrixType transformMatrix(3, 3, 9, transform); // read transform into 3x3 vnl_matrix<double>
+
+    MatrixType dataMatrix =	this->ReadBVecFile("C:\\workspace\\Data\\Testathon\\issue840\\reorient_bvecs\\dwi_las.bvec");
+    MatrixType transformMatrix(3, 3, 9, transform); // read LAStoLPS transform into 3x3 vnl_matrix<double>
 
 	//reorient bvec
     MatrixType resultMatrix(dataMatrix); // same shape as data
@@ -240,7 +242,7 @@ void MainWindow::OnOpenFileButtonClicked()
     resultMatrix.inplace_transpose(); // transpose back to original shape
 
 	//write reorient bvec
-    this->WriteCSVFiles(resultMatrix, "E:\\moba\\orientations\\dwi_las_STANDALONE_to" + strDesiredOrientation + ".bvec");
+    this->WriteCSVFiles(resultMatrix, "C:\\workspace\\Data\\\\Testathon\\issue840\\reorient_bvecs\\dwi_las_STANDALONE_to" + strDesiredOrientation + ".bvec");
 
 }
 
