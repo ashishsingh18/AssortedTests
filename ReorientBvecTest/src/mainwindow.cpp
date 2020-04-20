@@ -167,20 +167,6 @@ void MainWindow::OnOpenFileButtonClicked()
         m_radiologicalCodeToString[it->first] = axcodeOrientationSwitchMap[it->second]; //
     }
 
-
-
-	//use orient image filter to get orientation
-	auto orientFilter = itk::OrientImageFilter< ImageType, ImageType >::New();
-	orientFilter->SetInput(reader->GetOutput());
-	orientFilter->UseImageDirectionOn();
-	orientFilter->SetDirectionTolerance(0);
-	orientFilter->SetCoordinateTolerance(0);
-    //
-    //orientFilter->SetDesiredCoordinateOrientation(itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI);
-	orientFilter->Update();
-    std::cout << " input image orientation = " << m_CodeToString[orientFilter->GetGivenCoordinateOrientation()] << std::endl;
-	std::cout << orientFilter->GetPermuteOrder() << std::endl;
-
 	// 4D image handling starts here
 	// we extract individual 3D images from the input 4D image
 
@@ -230,11 +216,13 @@ void MainWindow::OnOpenFileButtonClicked()
 
     std::cout << "Calculating necessary transform" << endl;
 	//anatomical orientation transform
-    vtkAnatomicalOrientation currentOrientation("RPI");
+    std::string strCurrentOrientation("LAS");
+    std::string strDesiredOrientation("LIA");
+    vtkAnatomicalOrientation currentOrientation(strCurrentOrientation);
     // Change the above line to take the string-conversion of ITK OrientImageFilter's "GetGivenCoordinateOrientation"
     // (use either m_CodeToString or m_radiologicalCodeToString as desired/needed)
     vtkAnatomicalOrientation desiredOrientation;
-    desiredOrientation.SetForAcronym("RAI");
+    desiredOrientation.SetForAcronym(strDesiredOrientation);
     double transform[9] = { 0.0 };
     currentOrientation.GetTransformTo(desiredOrientation, transform);
 	for (int i = 0; i < 9; i++)
@@ -243,8 +231,8 @@ void MainWindow::OnOpenFileButtonClicked()
 
 	//read bvec
     std::cout << "Applying transform" << endl;
-    MatrixType dataMatrix =	this->ReadBVecFile("C:\\workspace\\Data\\Testathon\\issue840\\reorient_bvecs\\dwi_las.bvec");
-    MatrixType transformMatrix(3, 3, 9, LAStoLPS); // read LAStoLPS transform into 3x3 vnl_matrix<double>
+    MatrixType dataMatrix =	this->ReadBVecFile("E:\\moba\\orientations\\dwi_las.bvec");
+    MatrixType transformMatrix(3, 3, 9, transform); // read transform into 3x3 vnl_matrix<double>
 
 	//reorient bvec
     MatrixType resultMatrix(dataMatrix); // same shape as data
@@ -252,11 +240,11 @@ void MainWindow::OnOpenFileButtonClicked()
     resultMatrix.inplace_transpose(); // transpose back to original shape
 
 	//write reorient bvec
-    this->WriteCSVFiles(resultMatrix, "C:\\workspace\\Data\\Testathon\\issue840\\reorient_bvecs\\vnlout.txt");
+    this->WriteCSVFiles(resultMatrix, "E:\\moba\\orientations\\dwi_las_STANDALONE_to" + strDesiredOrientation + ".bvec");
 
 }
 
-void MainWindow::WriteCSVFiles(MatrixType matrix, QString filename)
+void MainWindow::WriteCSVFiles(MatrixType matrix, std::string filename)
 {
     std::cout << "Beginning file writing"  << endl;
     using WriterType = itk::CSVNumericObjectFileWriter<double>;
@@ -264,7 +252,7 @@ void MainWindow::WriteCSVFiles(MatrixType matrix, QString filename)
 
     try {
         writer->SetInput(&matrix);
-        writer->SetFileName(filename.toStdString());
+        writer->SetFileName(filename);
         writer->SetFieldDelimiterCharacter(' ');
         writer->Update();
     }
