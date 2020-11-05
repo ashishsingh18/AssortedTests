@@ -9,6 +9,7 @@
 #include <vtkContextView.h>
 #include <vtkContextScene.h>
 #include <vtkPen.h>
+#include <map>
  
 int main(int, char *[])
 {
@@ -43,7 +44,7 @@ int main(int, char *[])
     table->SetValue(i, 2, sin(i * inc));
 	v1.push_back(i*inc);
 	v2.push_back(cos(v1[i]));
-	v3.push_back(sin(v2[i]));
+	v3.push_back(sin(v1[i]));
 	v4.push_back(i);
   }
  
@@ -56,6 +57,19 @@ int main(int, char *[])
   v4.push_back(70);
   v4.push_back(71);
   v4.push_back(72);
+
+  std::map<std::string, std::vector<float>*> map;
+  map["v1"] = &v1;
+  map["v2"] = &v2;
+  map["v3"] = &v3;
+  map["v4"] = &v4;
+
+  
+  for (std::map<std::string, std::vector<float>*>::iterator itr = map.begin(); itr != map.end(); ++itr)
+  {
+	  std::for_each(itr->second->begin(), itr->second->end(), [](float v) {cout << v << " "; });
+	  std::cout << " written " << std::endl;
+  }
 
   // Set up the view
   vtkSmartPointer<vtkContextView> view = 
