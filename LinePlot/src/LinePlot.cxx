@@ -35,13 +35,28 @@ int main(int, char *[])
   int numPoints = 69;
   float inc = 7.5 / (numPoints-1);
   table->SetNumberOfRows(numPoints);
+  std::vector<float> v1, v2, v3, v4;
   for (int i = 0; i < numPoints; ++i)
   {
     table->SetValue(i, 0, i * inc);
     table->SetValue(i, 1, cos(i * inc));
     table->SetValue(i, 2, sin(i * inc));
+	v1.push_back(i*inc);
+	v2.push_back(cos(v1[i]));
+	v3.push_back(sin(v2[i]));
+	v4.push_back(i);
   }
  
+  v2.push_back(7.1);
+  v2.push_back(7.5);
+
+  for (int i = 0; i < numPoints; i++)
+	  v3.push_back(sin(v1[i]));
+
+  v4.push_back(70);
+  v4.push_back(71);
+  v4.push_back(72);
+
   // Set up the view
   vtkSmartPointer<vtkContextView> view = 
     vtkSmartPointer<vtkContextView>::New();
