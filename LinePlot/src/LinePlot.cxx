@@ -21,17 +21,18 @@ void CreateChart(vtkChartXY* chart, std::map<std::string, std::vector<float>*>* 
 		a2->SetName(itr->first.c_str());
 		table->AddColumn(a1);
 		table->AddColumn(a2);
+		std::cout << "number of columns: " << table->GetNumberOfColumns() << std::endl;
 
 		for (vtkIdType i = 0; i < itr->second->size(); i++)
 		{
 			table->SetValue(i, 0, i);
-			table->SetValue(i, 1, itr->second->at(i));
+			//table->SetValue(i, 1, itr->second->at(i));
 		}
 
-		vtkPlot *line = chart->AddPlot(vtkChart::POINTS);
-		line->SetInputData(table, 0, 1);
-		line->SetColor(0, 255, 0, 255);
-		line->SetWidth(1.0);
+		//vtkPlot *line = chart->AddPlot(vtkChart::POINTS);
+		//line->SetInputData(table, 0, 1);
+		//line->SetColor(0, 255, 0, 255);
+		//line->SetWidth(1.0);
 	}
 }
 
