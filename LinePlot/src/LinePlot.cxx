@@ -15,9 +15,21 @@ void CreateChart(vtkChartXY* chart, std::map<std::string, std::vector<float>*>* 
 {
 	for (std::map<std::string, std::vector<float>*>::iterator itr = map->begin(); itr != map->end(); ++itr)
 	{
+		vtkNew< vtkTable> table;
 
+		for (vtkIdType i = 0; i < itr->second->size(); i++)
+		{
+			table->SetValue(i, 0, i);
+			table->SetValue(i, 1, itr->second->at(i));
+		}
+
+		vtkPlot *line = chart->AddPlot(vtkChart::POINTS);
+		line->SetInputData(table, 0, 1);
+		line->SetColor(0, 255, 0, 255);
+		line->SetWidth(1.0);
 	}
 }
+
 int main(int, char *[])
 {
   // Create a table with some points in it
@@ -95,6 +107,8 @@ int main(int, char *[])
   line->SetInputData(table, 0, 2);
   line->SetColor(255, 0, 0, 255);
   line->SetWidth(5.0);
+
+  CreateChart(chart, &map);
 
   // For dotted line, the line type can be from 2 to 5 for different dash/dot
   // patterns (see enum in vtkPen containing DASH_LINE, value 2):
