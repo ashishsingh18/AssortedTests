@@ -11,6 +11,13 @@
 #include <vtkPen.h>
 #include <map>
  
+void CreateChart(vtkChartXY* chart, std::map<std::string, std::vector<float>*>* map)
+{
+	for (std::map<std::string, std::vector<float>*>::iterator itr = map->begin(); itr != map->end(); ++itr)
+	{
+
+	}
+}
 int main(int, char *[])
 {
   // Create a table with some points in it
