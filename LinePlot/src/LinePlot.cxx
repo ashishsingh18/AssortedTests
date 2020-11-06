@@ -16,6 +16,8 @@ void CreateChart(vtkChartXY* chart, std::map<std::string, std::vector<float>*>* 
 	for (std::map<std::string, std::vector<float>*>::iterator itr = map->begin(); itr != map->end(); ++itr)
 	{
 		vtkNew< vtkTable> table;
+		vtkNew<vtkFloatArray> a1;
+		a1->SetName("X");
 
 		for (vtkIdType i = 0; i < itr->second->size(); i++)
 		{
