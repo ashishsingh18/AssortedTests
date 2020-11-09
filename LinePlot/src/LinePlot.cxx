@@ -10,7 +10,7 @@
 #include <vtkContextScene.h>
 #include <vtkPen.h>
 #include <map>
- 
+
 void CreateChart(vtkChartXY* chart, std::map<std::string, std::vector<float>*>* map)
 {
 	for (std::map<std::string, std::vector<float>*>::iterator itr = map->begin(); itr != map->end(); ++itr)
@@ -21,18 +21,20 @@ void CreateChart(vtkChartXY* chart, std::map<std::string, std::vector<float>*>* 
 		a2->SetName(itr->first.c_str());
 		table->AddColumn(a1);
 		table->AddColumn(a2);
+		table->SetNumberOfRows(itr->second->size());
 		std::cout << "number of columns: " << table->GetNumberOfColumns() << std::endl;
+		std::cout << "number of rows: " << table->GetNumberOfRows() << std::endl;
 
 		for (vtkIdType i = 0; i < itr->second->size(); i++)
 		{
 			table->SetValue(i, 0, i);
-			//table->SetValue(i, 1, itr->second->at(i));
+			table->SetValue(i, 1, itr->second->at(i));
 		}
 
-		//vtkPlot *line = chart->AddPlot(vtkChart::POINTS);
-		//line->SetInputData(table, 0, 1);
-		//line->SetColor(0, 255, 0, 255);
-		//line->SetWidth(1.0);
+		vtkPlot *line = chart->AddPlot(vtkChart::POINTS);
+		line->SetInputData(table, 0, 1);
+		line->SetColor(0, 255.0, 0, 255);
+		line->SetWidth(1.0);
 	}
 }
 
@@ -73,8 +75,8 @@ int main(int, char *[])
 	v4.push_back(i);
   }
  
-  v2.push_back(7.1);
-  v2.push_back(7.5);
+  v2.push_back(.36);
+  v2.push_back(.40);
 
   for (int i = 0; i < numPoints; i++)
 	  v3.push_back(sin(v1[i]));
